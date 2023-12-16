@@ -11,7 +11,7 @@ namespace RabbitMQ.Controllers.v1;
 public class VersionController : ControllerBase
 {
 	[HttpGet]
-	public IActionResult Get()
+	public IActionResult Get(int id)
 	{
 		return Ok("version 1");
 	}

@@ -33,6 +33,7 @@ namespace RabbitMQ.Controllers;
 [Route("rabbit")]
 public class RabbitController : ControllerBase
 {
+	private readonly Guid id = Guid.Parse("8a2c17e9-d56f-47e7-ad52-369550fc0c6a");
 	//private readonly Publisher publisher;
 	private readonly IEventBus eventBus;
 	private readonly IBus bus;
@@ -58,52 +59,11 @@ public class RabbitController : ControllerBase
 	}
 
 	[HttpGet]
-	[Authorize]
-	//[Authorize(Policy = "TestPolicy")]
-	[Authorize(Policy = IdentityData.AdminPolicyName)]
-	[RequiresClaim(IdentityData.AdminClaimName, "true")]
-	[Route("jwt")]
-	public IActionResult Jwt()
-	{
-		var txOptions = new TransactionOptions() { IsolationLevel = IsolationLevel.Serializable };
-		using var transaction = new TransactionScope(TransactionScopeOption.Required, txOptions);
-		// dbContext operations
-		Console.WriteLine("Executed");
-
-		return Ok();
-	}
-
-	[HttpGet]
-	[Route("get-jwt")]
-	public IActionResult GetJwt()
-	{
-		var username = "User #1";
-		var claims = new List<Claim>()
-		{
-			new Claim(JwtRegisteredClaimNames.NameId, Guid.NewGuid().ToString()),
-			new Claim(JwtRegisteredClaimNames.Name, username),
-			new Claim(IdentityData.AdminClaimName, "true"),
-			new Claim(ClaimTypes.Role, "admin")
-		};
-
-		var jwt = new JwtSecurityToken(
-			issuer: "someIssuer",
-			audience: "someAudience",
-			claims: claims,
-			//expires: DateTime.UtcNow.Add(TimeSpan.FromMinutes(15)),
-			expires: DateTime.UtcNow.Add(TimeSpan.FromDays(1)),
-			signingCredentials: new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes("PleaseBeSecurePleaseBeSecurePleaseBeSecure")),
-			SecurityAlgorithms.HmacSha256));
-
-		return Ok(new JwtSecurityTokenHandler().WriteToken(jwt));
-	}
-
-
-	[HttpGet]
 	public async Task<IActionResult> Get()
 	{
 		var productEvent = new ProductCreatedEvent() { Name = "Fikus", Age = 20 };
-		await publisher.Publish(productEvent);
+		//await publisher.Publish(productEvent);
+		await publisher.Publish(productEvent, ctx => ctx.MessageId = id);
 		//await eventBus.PublishAsync(productEvent);
 
 		return Ok();
@@ -118,6 +78,17 @@ public class RabbitController : ControllerBase
 		//var endpoint = await bus.GetSendEndpoint(new Uri("exchange:product-event?type=direct"));
 
 		await bus.Send(productEvent);
+
+		return Ok();
+	}
+
+	[HttpPost]
+	[Route("create-something-command")]
+	public async Task<IActionResult> PostCreateSomethingCommand()
+	{
+		var command = new CreateSomethingCommand();
+
+		await bus.Send(command);
 
 		return Ok();
 	}

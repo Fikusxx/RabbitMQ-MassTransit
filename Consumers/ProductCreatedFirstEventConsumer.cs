@@ -1,22 +1,32 @@
 ﻿using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Models;
-using RabbitMQ.Services;
-using System.Data;
-using System.Diagnostics;
 
 namespace RabbitMQ.Consumers;
 
-public class ProductCreatedEventConsumer : IConsumer<ProductCreatedEvent>
+public class ProductCreatedFirstEventConsumer : IConsumer<ProductCreatedEvent>
 {
 	public async Task Consume(ConsumeContext<ProductCreatedEvent> context)
 	{
-        await Console.Out.WriteLineAsync("Recieved #1");
-        var data = context.Message;
-		Console.WriteLine($"Consumer #1: {data.Name} | {data.Age}");
-		var isType = context.HasMessageType(typeof(ProductCreatedEvent));
-		var types = context.SupportedMessageTypes;
-		var id = context.MessageId;
+		await Console.Out.WriteLineAsync("First | Processed at: " + DateTime.Now.ToLongTimeString());
+		var messageId = context.MessageId;
+
+		//await Console.Out.WriteLineAsync("Recieved #1");
+		//var data = context.Message;
+		//Console.WriteLine($"Consumer #1: {data.Name} | {data.Age}");
+		//var isType = context.HasMessageType(typeof(ProductCreatedEvent));
+		//var types = context.SupportedMessageTypes;
+		//var id = context.MessageId;
+
+		await Task.CompletedTask;
+	}
+}
+
+public class ProductCreatedSecondEventConsumer : IConsumer<ProductCreatedEvent>
+{
+	public async Task Consume(ConsumeContext<ProductCreatedEvent> context)
+	{
+		await Console.Out.WriteLineAsync("Second | Processed at: " + DateTime.Now.ToLongTimeString());
+		var messageId = context.MessageId;
 
 		await Task.CompletedTask;
 	}

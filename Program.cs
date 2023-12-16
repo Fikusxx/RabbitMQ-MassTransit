@@ -1,27 +1,26 @@
-using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
-using Polly;
-using Polly.Timeout;
-using RabbitMQ.Consumers;
-using RabbitMQ.Hubs;
-using RabbitMQ.Identity;
-using RabbitMQ.Models;
-using RabbitMQ.SagaStateMachine;
-using RabbitMQ.Services;
-using RabbitMQ.Test;
-using System.Reflection;
-using System.Security.Claims;
-using System.Text;
 using System.Threading.RateLimiting;
+using RabbitMQ.SagaStateMachine;
+using System.Security.Claims;
+using RabbitMQ.Consumers;
+using RabbitMQ.Identity;
+using RabbitMQ.Services;
+using System.Reflection;
+using RabbitMQ.Models;
+using Polly.Timeout;
+using RabbitMQ.Hubs;
+using RabbitMQ.Test;
+using System.Text;
+using MassTransit;
+using Polly;
+using RabbitMQ.Controllers;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
-
-//builder.Services.AddSignalR();
 
 builder.Services.AddSignalR(opt =>
 {
@@ -99,8 +98,13 @@ builder.Services.AddAuthorization(options =>
 {
 	options.AddPolicy("TestPolicy", policy => policy.RequireClaim(ClaimTypes.Name, "Fikus"));
 	options.AddPolicy(IdentityData.AdminPolicyName, policy => policy.RequireClaim(IdentityData.AdminClaimName, "true"));
+
+	options.AddPolicy("EditPolicy", policy =>
+		policy.Requirements.Add(new SameOwnerRequirement()));
 	//options.AddPolicy(IdentityData.AdminPolicyName, policy => policy.RequireRole("admin"));
 });
+
+builder.Services.AddSingleton<IAuthorizationHandler, MyResourcceAuthorizationHandler>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -121,7 +125,8 @@ builder.Services.AddMassTransit(config =>
 
 	config.AddConsumers(Assembly.GetExecutingAssembly());
 
-	config.AddConsumer<ProductCreatedEventConsumer>();
+
+	//config.AddConsumer<ProductCreatedEventConsumer>();
 	//config.AddConsumer<ProductCreatedEventConsumerTwo>().Endpoint(x =>
 	//{
 	//	x.Temporary = true;
@@ -191,14 +196,31 @@ builder.Services.AddMassTransit(config =>
 			//opt.Bind<ProductCreatedEvent>();
 			//opt.Bind(exchangeName: "RabbitMQ.Models:ProductCreatedEvent");
 
-			//opt.Consumer<ProductCreatedEventConsumer>();
-			opt.ConfigureConsumer<ProductCreatedEventConsumer>(ctx, opt =>
+			//opt.Consumer<ProductCreatedSecondEventConsumer>();
+			opt.ConfigureConsumer<ProductCreatedSecondEventConsumer>(ctx, opt =>
 			{
+				opt.UseMessageRetry(x => x.Immediate(5));
 				opt.UseInMemoryOutbox();
 			});
 
+			opt.ConfigureConsumer<ProductCreatedFirstEventConsumer>(ctx, opt => opt.UseInMemoryOutbox());
+
 			//opt.ConfigureConsumer<ProductCreatedEventConsumerTwo>(ctx);
 			//opt.ConfigureConsumers(ctx);
+		});
+
+		rabbit.ReceiveEndpoint("create-something-command-endpoint", opt =>
+		{
+			opt.AutoDelete = true;
+
+			// предотвращает создание exchange для потребляемых типов (events/commands)
+			opt.ConfigureConsumeTopology = false;
+
+			opt.ConfigureConsumer<CreateSomethingCommandConsumer>(ctx, opt =>
+			{
+				opt.UseMessageRetry(x => x.Immediate(5));
+				opt.UseInMemoryOutbox();
+			});
 		});
 
 		rabbit.PrefetchCount = 100;
@@ -206,6 +228,9 @@ builder.Services.AddMassTransit(config =>
 
 		//EndpointConvention.Map<ProductCreatedEvent>(new Uri("exchange:product-created-event?autoDelete=true"));
 		EndpointConvention.Map<ProductCreatedEvent>(new Uri("exchange:product-event?type=direct"));
+
+		EndpointConvention.Map<CreateSomethingCommand>(
+			new Uri("exchange:create-something-command-endpoint?autoDelete=true"));
 
 		rabbit.ConfigureEndpoints(ctx);
 	});
@@ -222,8 +247,7 @@ builder.Services.AddApiVersioning(options =>
 	options.ApiVersionReader = ApiVersionReader.Combine(
 			new HeaderApiVersionReader("x-version"), // #1, the only used 
 			new QueryStringApiVersionReader("api-version"), // #2, occasionally used
-			new MediaTypeApiVersionReader("version") // not really used
-		);
+			new MediaTypeApiVersionReader("version")); // not really used
 });
 
 builder.Services.AddVersionedApiExplorer(options =>
