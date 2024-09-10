@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.SignalR;
-using RabbitMQ.Consumers;
+﻿using Microsoft.AspNetCore.SignalR;
 
 namespace RabbitMQ.Hubs;
 
@@ -57,4 +55,8 @@ public class ChatHub : Hub<IChatClientNotifications>, IChatClient
 	}
 }
 
-
+public class Person
+{
+	public string Name { get; set; }
+	public int Age { get; set; }
+}
